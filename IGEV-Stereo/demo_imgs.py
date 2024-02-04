@@ -37,21 +37,42 @@ def demo(args):
         right_images = sorted(glob.glob(args.right_imgs, recursive=True))
         print(f"Found {len(left_images)} images. Saving files to {output_directory}/")
 
+        Path(os.path.join(args.output_directory, 'images')).mkdir(exist_ok=True, parents=True)
+        Path(os.path.join(args.output_directory, 'depth')).mkdir(exist_ok=True, parents=True)
+
         for (imfile1, imfile2) in tqdm(list(zip(left_images, right_images))):
-            image1 = load_image(imfile1)
+            image1 = load_image(imfile1)    # (1, 3, h, w)
             image2 = load_image(imfile2)
+            if args.stereo_depth:
+                image3 = image1.clone().flip(dims=[2, 3])
+                image4 = image2.clone().flip(dims=[2, 3])
 
             padder = InputPadder(image1.shape, divis_by=32)
-            image1, image2 = padder.pad(image1, image2)
+            if args.stereo_depth:
+                image1, image2, image3, image4 = padder.pad(image1, image2, image3, image4)
+            else:
+                image1, image2 = padder.pad(image1, image2)
 
             disp = model(image1, image2, iters=args.valid_iters, test_mode=True)
             disp = disp.cpu().numpy()
             disp = padder.unpad(disp)
             file_stem = imfile1.split('/')[-2]
-            filename = os.path.join(output_directory, f"{file_stem}.png")
-            plt.imsave(output_directory / f"{file_stem}.png", disp.squeeze(), cmap='jet')
-            # disp = np.round(disp * 256).astype(np.uint16)
-            # cv2.imwrite(filename, cv2.applyColorMap(cv2.convertScaleAbs(disp.squeeze(), alpha=0.01),cv2.COLORMAP_JET), [int(cv2.IMWRITE_PNG_COMPRESSION), 0])
+            if args.stereo_depth:
+                file_stem_left, file_stem_right = file_stem + '_left', file_stem + '_right'
+                disp_right = model(image4, image3, iters=args.valid_iters, test_mode=True).cpu().numpy()
+                disp_right = padder.unpad(disp_right)[:, :, ::-1, ::-1]
+                filename_left, filename_right = os.path.join(output_directory, f"{file_stem_left}.png"), os.path.join(output_directory, f"{file_stem_right}.png")
+
+                plt.imsave(output_directory / 'images' / f"{file_stem_left}.png", disp.squeeze(), cmap='jet')
+                np.save(output_directory / 'depth' / f"{file_stem_left}.npy", disp.squeeze())
+                plt.imsave(output_directory / 'images' / f"{file_stem_right}.png", disp_right.squeeze(), cmap='jet')
+                np.save(output_directory / 'depth' / f"{file_stem_right}.npy", disp_right.squeeze())
+            else:
+                filename = os.path.join(output_directory, f"{file_stem}.png")
+                plt.imsave(output_directory / f"{file_stem}.png", disp.squeeze(), cmap='jet')
+                np.save(output_directory / f"{file_stem}.npy", disp.squeeze())
+                # disp = np.round(disp * 256).astype(np.uint16)
+                # cv2.imwrite(filename, cv2.applyColorMap(cv2.convertScaleAbs(disp.squeeze(), alpha=0.01),cv2.COLORMAP_JET), [int(cv2.IMWRITE_PNG_COMPRESSION), 0])
 
 
 if __name__ == '__main__':
@@ -80,9 +101,10 @@ if __name__ == '__main__':
     parser.add_argument('--slow_fast_gru', action='store_true', help="iterate the low-res GRUs more frequently")
     parser.add_argument('--n_gru_layers', type=int, default=3, help="number of hidden GRU levels")
     parser.add_argument('--max_disp', type=int, default=192, help="max disp of geometry encoding volume")
+    parser.add_argument('--stereo_depth', action='store_true', help='output stereo depth map')
     
     args = parser.parse_args()
 
-    Path(args.output_directory).mkdir(exist_ok=True, parents=True)
+    # Path(args.output_directory).mkdir(exist_ok=True, parents=True)
 
     demo(args)
