@@ -18,6 +18,8 @@ import cv2
 
 def load_image(imfile):
     img = np.array(Image.open(imfile)).astype(np.uint8)
+    if img.ndim == 2:
+        img = np.stack([img, img, img], axis=2)
     img = torch.from_numpy(img).permute(2, 0, 1).float()
     return img[None].to(DEVICE)
 
