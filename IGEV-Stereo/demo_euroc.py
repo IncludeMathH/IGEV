@@ -16,9 +16,7 @@ from matplotlib import pyplot as plt
 import os
 import cv2
 
-import glob
 import pandas as pd
-import os
 
 def get_reference_timestamps(csv_dir):
     # 获取所有CSV文件
@@ -40,7 +38,7 @@ def convert_filename(filename):
     # 分割文件名
     parts = filename.split('/')
     # 组合新的文件名
-    new_filename = f"{parts[2]}-{parts[4]}-{parts[-1]}"
+    new_filename = f"{parts[2]}-{parts[4]}-{parts[-1].split('.')[0]}"
     return new_filename
 
 def load_image(imfile):
